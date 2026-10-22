@@ -212,7 +212,65 @@ show 명령어를 통한 상태 확인
 
 ---
 
-## 6. Troubleshooting Documentation
+---
+
+## 6. Network Security Implementation
+
+### 6.1 Guest VLAN Isolation using Extended ACL
+
+#### Objective
+
+Guest Network와 사내 업무 네트워크를 분리하여 비인가 접근을 제한하고, Cisco Extended ACL을 이용한 네트워크 접근 제어를 구현합니다.
+
+#### Security Policy
+
+| Source | Destination | Policy |
+|---|---|---|
+| VLAN 60 (GUEST) | VLAN 10 (HR) | Deny |
+| VLAN 60 (GUEST) | VLAN 20 (DEV) | Deny |
+| VLAN 60 (GUEST) | VLAN 30 (SALES) | Deny |
+| VLAN 60 (GUEST) | VLAN 40 (SERVER) | Deny |
+| VLAN 60 (GUEST) | VLAN 50 (MGMT) | Deny |
+| VLAN 60 (GUEST) | Default Gateway | Permit |
+
+#### Configuration Summary
+
+| Item | Configuration |
+|---|---|
+| ACL Name | `GUEST-IN` |
+| ACL Type | Extended ACL |
+| Applied Interface | `Vlan60` |
+| Direction | Inbound |
+| Guest Subnet | `10.10.60.0/24` |
+| Virtual Gateway | `10.10.60.1` |
+| Target Devices | CORE-SW1 / CORE-SW2 |
+
+#### Verification Results
+
+| Test Case | Expected Result | Observed Result |
+|---|---|---|
+| PC-GUEST1 → `10.10.60.1` | Permit | Success |
+| PC-GUEST1 → `10.10.10.2` (HR) | Deny | Blocked |
+| PC-GUEST1 → `10.10.20.2` (DEV) | Deny | Blocked |
+| PC-GUEST1 → `10.10.30.2` (SALES) | Deny | Blocked |
+| PC-GUEST1 → VLAN 40 (SERVER) | Deny | Blocked |
+| PC-GUEST1 → VLAN 50 (MGMT) | Deny | Blocked |
+
+#### Verification Commands
+
+```text
+show access-lists
+show running-config
+show standby brief
+```
+
+#### Result
+
+Guest VLAN 60의 내부 네트워크 VLAN 10~50 접근 차단을 검증했습니다. 테스트 과정에서 ACL의 deny 항목별 매치 카운터가 증가했으며, Guest PC는 기본 게이트웨이에 정상적으로 접근할 수 있음을 확인했습니다.
+
+---
+
+## 7. Troubleshooting Documentation
 
 각 장애는 다음과 같은 형식으로 기록합니다.
 
@@ -260,7 +318,7 @@ ping 10.10.40.x
 
 ---
 
-## 7. Project Goals
+## 8. Project Goals
 
 이 프로젝트를 통해 다음과 같은 역량을 확보하는 것을 목표로 합니다.
 
@@ -275,7 +333,7 @@ ping 10.10.40.x
 
 ---
 
-## 8. Project Status
+## 9. Project Status
 
 > 🚧 현재 프로젝트 구축 진행 중
 
@@ -296,7 +354,7 @@ ping 10.10.40.x
 
 ---
 
-## 9. Repository Structure
+## 10. Repository Structure
 
 프로젝트가 진행되면서 다음과 같이 구성할 예정입니다.
 
@@ -348,7 +406,7 @@ Cisco-Enterprise-Network/
 
 ---
 
-## 10. Final Objective
+## 11. Final Objective
 
 최종적으로 다음과 같은 흐름을 갖는 Enterprise Network LAB을 완성합니다.
 
