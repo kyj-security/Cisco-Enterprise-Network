@@ -270,6 +270,57 @@ Guest VLAN 60의 내부 네트워크 VLAN 10~50 접근 차단을 검증했습니
 
 ---
 
+### 6.2 SSH 기반 네트워크 장비 원격 관리 보안
+
+#### 1. 구현 목적
+
+- Telnet 대신 SSH를 사용하여 네트워크 장비의 원격 관리 보안 강화
+- 로컬 사용자 계정을 이용한 관리자 인증 구성
+- CORE-SW1과 CORE-SW2에 SSH v2 적용
+- VTY 접속을 SSH로 제한하여 Telnet을 통한 원격 접속 차단
+
+#### 2. 구성 정보
+
+| 항목 | CORE-SW1 | CORE-SW2 |
+|---|---|---|
+| 관리 VLAN | VLAN 50 (MGMT) | VLAN 50 (MGMT) |
+| 관리 IP | `10.10.50.254` | `10.10.50.253` |
+| SSH 버전 | SSH v2 | SSH v2 |
+| 인증 방식 | 로컬 사용자 계정 | 로컬 사용자 계정 |
+| 원격 접속 방식 | SSH 전용 | SSH 전용 |
+
+#### 3. 주요 보안 설정
+
+- 관리자 계정 `netadmin` 생성 및 로컬 인증 적용
+- RSA 키 생성 및 SSH 암호화 통신 구성
+- SSH 프로토콜 버전 2 활성화
+- VTY 라인에 `login local` 적용
+- `transport input ssh`를 적용하여 원격 접속을 SSH로 제한
+
+#### 4. 검증 결과
+
+| 검증 항목 | 결과 |
+|---|---|
+| PC-MGMT1 → CORE-SW1 (`10.10.50.254`) SSH 접속 | 성공 |
+| PC-MGMT1 → CORE-SW2 (`10.10.50.253`) SSH 접속 | 성공 |
+| 관리자 계정 인증 | 성공 |
+| SSH v2 활성화 확인 | 완료 |
+| VTY SSH 전용 설정 확인 | 완료 |
+
+#### 5. 검증 명령어
+
+```text
+show ip ssh
+show crypto key mypubkey rsa
+show running-config
+```
+
+#### 6. 구현 결과
+
+CORE-SW1과 CORE-SW2에 SSH 기반 원격 관리 환경을 구축하고 PC-MGMT1을 통한 실제 접속을 검증했습니다. SSH v2와 로컬 사용자 인증을 적용했으며, VTY 원격 접속을 SSH로 제한하여 Telnet 접속을 차단하도록 구성했습니다.
+
+
+
 ## 7. Troubleshooting Documentation
 
 각 장애는 다음과 같은 형식으로 기록합니다.
