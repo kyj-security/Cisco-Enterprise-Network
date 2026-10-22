@@ -338,7 +338,68 @@ CORE-SW1과 CORE-SW2에 SSH 기반 원격 관리 환경을 구축하고 PC-MGMT1
 
 관리 PC에서 두 코어 스위치로 SSH 접속이 성공했으며, 일반 사용자 PC인 PC-HR1에서 CORE-SW1로 접속을 시도했을 때 연결이 거부되는 것을 확인했습니다. 또한 `show access-lists` 명령어에서 `SSH-MGMT`의 `deny any` 항목에 매치 카운터가 기록된 것을 확인했습니다.
 
+### 6.3 HSRP 장애 전환 및 복구 검증
 
+#### 1. 검증 목적
+
+CORE-SW1과 CORE-SW2에 구성된 HSRP를 이용하여 Active 장비의 장애 발생 시 Standby 장비가 게이트웨이 역할을 인계하는지 확인하고, 장애 복구 후 원래 역할로 돌아오는지 검증합니다.
+
+#### 2. 테스트 환경
+
+| 항목 | 설정 |
+|---|---|
+| 주 Active 장비 | CORE-SW1 |
+| 대기 장비 | CORE-SW2 |
+| CORE-SW1 우선순위 | 110 |
+| CORE-SW2 우선순위 | 100 |
+| 가상 게이트웨이 | VLAN별 `10.10.X.1` |
+| 복구 설정 | `preempt` 적용 |
+
+#### 3. 장애 전환 테스트
+
+CORE-SW1의 VLAN 10 인터페이스를 일시적으로 비활성화하여 HSRP 역할 전환을 유도했습니다.
+
+```text
+interface vlan 10
+shutdown
+```
+
+**검증 결과**
+
+- CORE-SW1의 VLAN 10 인터페이스 비활성화
+- CORE-SW2의 VLAN 10 HSRP 상태가 `Active`로 전환
+- 장애 상황에서 대체 게이트웨이 장비의 역할 인계 확인
+
+#### 4. 장애 복구 테스트
+
+CORE-SW1의 VLAN 10 인터페이스를 다시 활성화했습니다.
+
+```text
+interface vlan 10
+no shutdown
+```
+
+**검증 결과**
+
+- CORE-SW1의 VLAN 10 상태가 `Active`로 복귀
+- VLAN 10~60에서 CORE-SW1의 `Active`, CORE-SW2의 `Standby` 상태 확인
+- `preempt` 설정에 따른 우선순위 기반 역할 복귀 확인
+
+#### 5. 통신 검증
+
+장애 복구 후 PC-HR1에서 다음 목적지로 Ping 테스트를 수행했습니다.
+
+| 출발지 | 목적지 | 결과 |
+|---|---|---|
+| PC-HR1 | `10.10.10.1` (HR 게이트웨이) | 성공 |
+| PC-HR1 | `10.10.20.2` (DEV PC) | 성공 |
+| PC-HR1 | `10.10.30.2` (SALES PC) | 성공 |
+
+#### 6. 최종 결과
+
+HSRP 장애 전환 및 복구 테스트를 통해 VLAN 10에서 CORE-SW2가 Active 역할을 인계하고, CORE-SW1 복구 후 원래 Active 역할을 되찾는 것을 확인했습니다. 복구 후 게이트웨이 접근 및 HR에서 DEV·SALES 네트워크로의 통신도 정상적으로 확인했습니다.
+
+이번 테스트는 VLAN 10 SVI 장애를 이용한 역할 전환 검증이며, 코어 스위치 전체 장애 시나리오와 장애 발생 중 무중단 통신 여부는 별도 검증이 필요합니다.
 
 ## 7. Troubleshooting Documentation
 
