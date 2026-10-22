@@ -319,6 +319,25 @@ show running-config
 
 CORE-SW1과 CORE-SW2에 SSH 기반 원격 관리 환경을 구축하고 PC-MGMT1을 통한 실제 접속을 검증했습니다. SSH v2와 로컬 사용자 인증을 적용했으며, VTY 원격 접속을 SSH로 제한하여 Telnet 접속을 차단하도록 구성했습니다.
 
+#### 추가 검증: SSH 접근 제어 ACL
+
+| 출발지 | 목적지 | 검증 결과 |
+|---|---|---|
+| PC-MGMT1 (`10.10.50.10`) | CORE-SW1 (`10.10.50.254`) | SSH 접속 성공 |
+| PC-MGMT1 (`10.10.50.10`) | CORE-SW2 (`10.10.50.253`) | SSH 접속 성공 |
+| PC-HR1 | CORE-SW1 (`10.10.50.254`) | SSH 접속 거부 |
+
+**접근 제어 정책**
+
+- ACL 이름: `SSH-MGMT`
+- 허용 대상: 관리 PC `10.10.50.10`
+- 그 외 출발지: 접속 차단
+- 적용 위치: VTY 0~4의 인바운드 접근 제어
+
+**검증 결과**
+
+관리 PC에서 두 코어 스위치로 SSH 접속이 성공했으며, 일반 사용자 PC인 PC-HR1에서 CORE-SW1로 접속을 시도했을 때 연결이 거부되는 것을 확인했습니다. 또한 `show access-lists` 명령어에서 `SSH-MGMT`의 `deny any` 항목에 매치 카운터가 기록된 것을 확인했습니다.
+
 
 
 ## 7. Troubleshooting Documentation
