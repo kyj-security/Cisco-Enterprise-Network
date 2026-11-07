@@ -51,6 +51,56 @@ VLAN 기반 네트워크 및 이중화 구조를 설계했습니다.
 
 ![Enterprise Network Topology](docs/images/01_Topology/01_Enterprise_Network_Topology.png)
 
+### VLAN Configuration
+
+부서별 네트워크를 VLAN으로 분리하여 브로드캐스트 도메인을 구분했습니다.
+
+![VLAN Configuration](docs/images/02_VLAN/02_VLAN_Configuration.png)
+
+### Trunk Configuration
+
+코어 및 액세스 스위치 간 Trunk 연결과 VLAN 전달 상태를 확인했습니다.
+
+![Trunk Configuration](docs/images/03_Trunk/03_Trunk_Configuration.png)
+
+### HSRP Redundancy
+
+CORE-SW1을 Active, CORE-SW2를 Standby로 구성하여 게이트웨이 이중화를 구현했습니다.
+
+![HSRP Active](docs/images/04_HSRP/04_HSRP_CORE-SW1_Active.png)
+
+![HSRP Standby](docs/images/04_HSRP/05_HSRP_CORE-SW2_Standby.png)
+
+### EtherChannel
+
+PAgP 기반 EtherChannel을 구성하고 Port-Channel 상태를 확인했습니다.
+
+![EtherChannel Status](docs/images/05_EtherChannel/06_EtherChannel_Status.png)
+
+### Spanning Tree Protocol
+
+STP를 통해 중복 연결 환경에서 루프를 방지하고 포트 상태를 확인했습니다.
+
+![STP CORE-SW1](docs/images/06_STP/07_STP_CORE-SW1.png)
+
+![STP CORE-SW2](docs/images/06_STP/08_STP_CORE-SW2.png)
+
+### Access Control List
+
+GUEST VLAN의 내부 네트워크 접근을 제한하기 위해 Extended ACL을 적용했습니다.
+
+![ACL CORE-SW1](docs/images/07_ACL/09_ACL_CORE-SW1.png)
+
+![ACL CORE-SW2](docs/images/07_ACL/10_ACL_CORE-SW2.png)
+
+### Connectivity Test
+
+내부 네트워크에서 GUEST 네트워크로 시작한 Ping은 허용하고, GUEST에서 내부 네트워크로 시작한 Ping은 차단되는 것을 확인했습니다.
+
+![HR to GUEST](docs/images/08_Ping_Test/11_HR_to_GUEST_Ping_Success.png)
+
+![GUEST to HR](docs/images/08_Ping_Test/12_GUEST_to_HR_Ping_Blocked.png)
+
 ### Network Design
 
 - CORE-SW1 / CORE-SW2를 중심으로 이중화된 코어 네트워크 구성
