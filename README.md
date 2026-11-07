@@ -44,6 +44,13 @@ VLAN 기반 네트워크 분리, Inter-VLAN Routing, HSRP 이중화, EtherChanne
 
 본 프로젝트는 기업 내부에 여러 부서와 서버, 네트워크 관리 및 외부 방문자용 네트워크가 존재하는 환경을 가정합니다.
 
+## Network Topology
+
+기업 네트워크 환경을 가정하여 CORE-SW1과 CORE-SW2를 중심으로
+VLAN 기반 네트워크 및 이중화 구조를 설계했습니다.
+
+![Enterprise Network Topology](docs/images/01_Topology/01_Enterprise_Network_Topology.png)
+
 ### Network Design
 
 - CORE-SW1 / CORE-SW2를 중심으로 이중화된 코어 네트워크 구성
