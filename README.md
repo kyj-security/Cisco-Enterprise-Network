@@ -1,10 +1,10 @@
-# Cisco-Enterprise-Network
-# Cisco 기반 Enterprise Network 설계·구축·장애 대응 및 네트워크 자동화 LAB
+# Cisco 기반 Enterprise Network 설계·구축 및 장애 대응
 
-Cisco 기반의 Enterprise Network 환경을 직접 설계하고 구축하며,  
-네트워크 장애 상황을 의도적으로 재현하고 원인을 분석·복구하는 실습 프로젝트입니다.
+Cisco Packet Tracer를 활용하여 기업 네트워크 환경을 설계하고 구축하는 프로젝트입니다.
 
-단순한 Cisco 명령어 실습을 넘어 **기업 네트워크의 설계 → 구축 → 검증 → 장애 대응 → 자동화**까지 경험하는 것을 목표로 합니다.
+VLAN 기반 네트워크 분리, Inter-VLAN Routing, HSRP 이중화, EtherChannel, STP, ACL 접근 제어 등을 구현하고, 실제 통신 테스트와 장애 분석을 통해 네트워크 구성의 정상 동작을 검증합니다.
+
+단순한 명령어 실습을 넘어 **네트워크 설계 → 구축 → 검증 → 장애 분석 및 대응 → 문서화** 과정을 직접 경험하는 것을 목표로 합니다.
 
 ---
 
@@ -12,482 +12,310 @@ Cisco 기반의 Enterprise Network 환경을 직접 설계하고 구축하며,
 
 ### 프로젝트 목적
 
-- Enterprise Network 구조 및 설계 방법 이해
-- Cisco Router / Switch 기반 네트워크 구축
-- VLAN 및 Inter-VLAN Routing 구성
-- OSPF 기반 동적 라우팅 구성
-- 네트워크 이중화 및 고가용성 구성
+- 기업 환경을 가정한 네트워크 토폴로지 설계
+- Cisco Switch 및 Router 기반 네트워크 구축
+- VLAN을 이용한 부서별 네트워크 분리
+- Inter-VLAN Routing을 통한 VLAN 간 통신 구현
+- HSRP를 이용한 기본 게이트웨이 이중화
+- EtherChannel을 이용한 링크 통합
+- STP를 통한 네트워크 루프 방지
 - ACL을 이용한 네트워크 접근 제어
-- NAT/PAT을 이용한 외부 네트워크 연결
-- 실제 장애 상황을 가정한 트러블슈팅
-- 반복적인 네트워크 운영 작업 자동화
+- Ping 및 Cisco show 명령어를 활용한 네트워크 검증
+- 장애 발생 시 원인 분석 및 복구 과정 문서화
 
 ### Project Environment
 
-| Category | Environment |
+| 구분 | 사용 기술 |
 |---|---|
 | Network Simulator | Cisco Packet Tracer |
 | Vendor | Cisco |
-| Routing | Static Routing / OSPF |
-| Switching | VLAN / Trunk / STP / EtherChannel |
+| Switching | VLAN, Access Port, Trunk |
+| Routing | Inter-VLAN Routing |
 | Redundancy | HSRP |
-| Security | ACL / SSH / VLAN Segmentation |
-| Internet Access | NAT / PAT |
-| Automation | Python / Ansible |
+| Link Aggregation | EtherChannel |
+| Loop Prevention | STP |
+| Network Security | Standard ACL, Extended ACL |
+| Verification | Ping, show commands |
 | Documentation | GitHub |
 
 ---
 
 ## 2. Network Architecture
 
-본 프로젝트에서는 중견기업의 본사 네트워크를 가정하여 설계합니다.
+본 프로젝트는 기업 내부에 여러 부서와 서버, 네트워크 관리 및 외부 방문자용 네트워크가 존재하는 환경을 가정합니다.
 
-```text
-                         INTERNET
-                            │
-                       [ EDGE-R1 ]
-                            │
-                       [ FIREWALL ]
-                            │
-                ┌───────────┴───────────┐
-                │                       │
-            [ CORE-SW1 ]═══════════[ CORE-SW2 ]
-                │                       │
-        ┌───────┼───────┐       ┌───────┼───────┐
-        │       │       │       │       │       │
-      [SW1]   [SW2]   [SW3]   SERVER    AP    Management
-        │       │       │
-       PC      PC      PC
-```
+### Network Design
 
-### Network Segmentation
+- CORE-SW1 / CORE-SW2를 중심으로 이중화된 코어 네트워크 구성
+- VLAN을 활용하여 부서별 네트워크 분리
+- HSRP를 통해 가상 기본 게이트웨이 제공
+- EtherChannel을 통해 스위치 간 링크 통합
+- STP를 통해 이중 연결 구조에서 발생할 수 있는 루프 방지
+- GUEST VLAN에 Extended ACL을 적용하여 내부 네트워크 접근 제한
 
-| VLAN | Name | Network | Purpose |
-|---:|---|---|---|
+### VLAN & IP Addressing Plan
+
+| VLAN | 이름 | 네트워크 | 용도 |
+|---|---|---|---|
 | 10 | HR | 10.10.10.0/24 | 인사팀 |
 | 20 | DEV | 10.10.20.0/24 | 개발팀 |
 | 30 | SALES | 10.10.30.0/24 | 영업팀 |
 | 40 | SERVER | 10.10.40.0/24 | 서버 |
 | 50 | MGMT | 10.10.50.0/24 | 네트워크 관리 |
-| 60 | GUEST | 10.10.60.0/24 | Guest Network |
+| 60 | GUEST | 10.10.60.0/24 | 방문자 네트워크 |
+
+### HSRP Gateway Design
+
+각 VLAN에 HSRP 가상 게이트웨이를 구성했습니다.
+
+| VLAN | Virtual IP | CORE-SW1 | CORE-SW2 |
+|---|---|---|---|
+| 10 | 10.10.10.1 | 10.10.10.254 | 10.10.10.253 |
+| 20 | 10.10.20.1 | 10.10.20.254 | 10.10.20.253 |
+| 30 | 10.10.30.1 | 10.10.30.254 | 10.10.30.253 |
+| 40 | 10.10.40.1 | 10.10.40.254 | 10.10.40.253 |
+| 50 | 10.10.50.1 | 10.10.50.254 | 10.10.50.253 |
+| 60 | 10.10.60.1 | 10.10.60.254 | 10.10.60.253 |
+
+- CORE-SW1: Priority 110, Active
+- CORE-SW2: Priority 100, Standby
+- 두 코어 스위치에 Preempt 설정 적용
 
 ---
 
-## 3. Network Design
+## 3. Implementation
 
-### Core Layer
+### 3-1. VLAN & Inter-VLAN Routing
 
-- CORE-SW1
-- CORE-SW2
-- Inter-VLAN Routing
-- OSPF
-- HSRP
-- 네트워크 핵심 구간 이중화
+부서별 네트워크를 VLAN으로 분리하고 각 VLAN에 SVI를 구성하여 VLAN 간 통신을 구현했습니다.
 
-### Access Layer
+구현 내용:
+- VLAN 10~60 생성
+- 부서별 Access Port 할당
+- 스위치 간 Trunk 구성
+- SVI 기반 Inter-VLAN Routing
+- VLAN별 IP 대역 및 기본 게이트웨이 구성
 
-- SW1
-- SW2
-- SW3
-- VLAN
-- Access Port
-- Trunk
-- STP
-- EtherChannel
+### 3-2. HSRP
 
-### Edge Layer
+코어 스위치 두 대에 HSRP를 구성하여 게이트웨이 이중화 환경을 구축했습니다.
 
-- EDGE-R1
-- Default Route
-- NAT/PAT
-- 외부 네트워크 연결
+구현 내용:
+- VLAN별 HSRP 그룹 구성
+- Virtual IP 설정
+- Priority 조정을 통한 Active / Standby 지정
+- Preempt 설정
+- `show standby brief`를 이용한 상태 확인
 
----
+### 3-3. EtherChannel
 
-## 4. Implementation Roadmap
+스위치 간 물리 링크를 논리적인 하나의 링크로 통합했습니다.
 
-### Phase 1. Network Design
+구현 내용:
+- PAgP 기반 EtherChannel 구성
+- Port-Channel 1 생성
+- Trunk 연결 구성
+- EtherChannel 상태 확인
 
-- [ ] 기업 환경 정의
-- [ ] 네트워크 요구사항 분석
-- [ ] 네트워크 토폴로지 설계
-- [ ] VLAN 설계
-- [ ] IP Addressing 계획
-- [ ] 장비 역할 정의
+검증 명령어:
 
-### Phase 2. Basic Switching
-
-- [ ] VLAN 구성
-- [ ] Access Port 구성
-- [ ] Trunk 구성
-- [ ] STP 구성
-- [ ] EtherChannel 구성
-- [ ] 기본 통신 테스트
-
-### Phase 3. Routing
-
-- [ ] Inter-VLAN Routing
-- [ ] Static Routing
-- [ ] OSPF
-- [ ] Default Route
-- [ ] Routing Table 검증
-
-### Phase 4. High Availability
-
-- [ ] HSRP
-- [ ] 링크 이중화
-- [ ] 장비 이중화
-- [ ] 장애 발생 시 Failover 테스트
-
-### Phase 5. Network Security
-
-- [ ] SSH 원격 관리
-- [ ] Standard ACL
-- [ ] Extended ACL
-- [ ] VLAN 간 접근제어
-- [ ] Guest Network 격리
-- [ ] Management Network 보호
-
-### Phase 6. Internet Connectivity
-
-- [ ] Edge Router 구성
-- [ ] NAT
-- [ ] PAT
-- [ ] Default Gateway
-- [ ] 내부 ↔ 외부 통신 테스트
-
-### Phase 7. Troubleshooting LAB
-
-의도적으로 장애를 발생시키고 다음 절차에 따라 분석합니다.
-
-```text
-장애 발생
-   ↓
-증상 확인
-   ↓
-문제 구간 추정
-   ↓
-show 명령어를 통한 상태 확인
-   ↓
-원인 분석
-   ↓
-설정 수정
-   ↓
-통신 테스트
-   ↓
-정상 상태 확인
-   ↓
-장애 대응 문서화
+```cisco
+show etherchannel summary
+show interfaces trunk
 ```
 
-### Phase 8. Network Automation
-
-- [ ] Python 기반 장비 상태 확인
-- [ ] Config Backup
-- [ ] Interface 상태 수집
-- [ ] Ping 자동 점검
-- [ ] 장애 탐지
-- [ ] Ansible 기반 Cisco 장비 관리
-
----
-
-## 5. Troubleshooting Scenarios
-
-프로젝트 진행 과정에서 다음과 같은 장애 상황을 직접 재현합니다.
-
-| Scenario | 주요 확인 내용 |
-|---|---|
-| VLAN 통신 장애 | VLAN / Access Port |
-| Trunk 장애 | Trunk / Allowed VLAN |
-| Inter-VLAN 통신 장애 | SVI / Gateway |
-| OSPF Neighbor 장애 | OSPF 설정 / Interface |
-| Routing 장애 | Routing Table |
-| ACL 통신 차단 | ACL Rule |
-| STP 문제 | Root Bridge / Port State |
-| EtherChannel 장애 | Port-Channel 설정 |
-| Interface 장애 | Interface Status |
-| Gateway 장애 | HSRP |
-| NAT 장애 | NAT Translation |
-| SSH 접속 장애 | SSH / VTY / Authentication |
-
----
-
----
-
-## 6. Network Security Implementation
-
-### 6.1 Guest VLAN Isolation using Extended ACL
-
-#### Objective
-
-Guest Network와 사내 업무 네트워크를 분리하여 비인가 접근을 제한하고, Cisco Extended ACL을 이용한 네트워크 접근 제어를 구현합니다.
-
-#### Security Policy
-
-| Source | Destination | Policy |
-|---|---|---|
-| VLAN 60 (GUEST) | VLAN 10 (HR) | Deny |
-| VLAN 60 (GUEST) | VLAN 20 (DEV) | Deny |
-| VLAN 60 (GUEST) | VLAN 30 (SALES) | Deny |
-| VLAN 60 (GUEST) | VLAN 40 (SERVER) | Deny |
-| VLAN 60 (GUEST) | VLAN 50 (MGMT) | Deny |
-| VLAN 60 (GUEST) | Default Gateway | Permit |
-
-#### Configuration Summary
-
-| Item | Configuration |
-|---|---|
-| ACL Name | `GUEST-IN` |
-| ACL Type | Extended ACL |
-| Applied Interface | `Vlan60` |
-| Direction | Inbound |
-| Guest Subnet | `10.10.60.0/24` |
-| Virtual Gateway | `10.10.60.1` |
-| Target Devices | CORE-SW1 / CORE-SW2 |
-
-#### Verification Results
-
-| Test Case | Expected Result | Observed Result |
-|---|---|---|
-| PC-GUEST1 → `10.10.60.1` | Permit | Success |
-| PC-GUEST1 → `10.10.10.2` (HR) | Deny | Blocked |
-| PC-GUEST1 → `10.10.20.2` (DEV) | Deny | Blocked |
-| PC-GUEST1 → `10.10.30.2` (SALES) | Deny | Blocked |
-| PC-GUEST1 → VLAN 40 (SERVER) | Deny | Blocked |
-| PC-GUEST1 → VLAN 50 (MGMT) | Deny | Blocked |
-
-#### Verification Commands
+확인 결과:
 
 ```text
-show access-lists
-show running-config
+Po1(SU)   PAgP   Fa0/1(P)
+```
+
+- S: Layer 2 Port-Channel
+- U: 정상적으로 사용 중
+- P: 물리 인터페이스가 Port-Channel에 번들링됨
+
+### 3-4. STP
+
+이중화된 스위치 연결 환경에서 네트워크 루프를 방지하기 위해 STP 동작을 확인했습니다.
+
+구현 및 확인 내용:
+- Root Bridge 확인
+- Designated / Root / Alternate Port 확인
+- Forwarding / Blocking 상태 확인
+- EtherChannel과 STP의 연동 상태 확인
+
+검증 명령어:
+
+```cisco
+show spanning-tree vlan 60
+```
+
+CORE-SW2의 Port-Channel이 Alternate / Blocking 상태로 확인되었으며, 이는 중복 경로로 인한 루프를 방지하기 위한 STP 동작입니다.
+
+---
+
+## 4. Network Security - ACL
+
+### GUEST Network Isolation
+
+방문자용 GUEST VLAN에서 기업 내부 네트워크로 임의 접근하는 것을 제한하기 위해 Extended ACL을 구성했습니다.
+
+정책 목표:
+- GUEST VLAN에서 내부 부서 네트워크로 시작하는 통신 차단
+- 내부 네트워크에서 GUEST로 시작한 ICMP Ping의 응답 허용
+- 그 외 정책에 해당하지 않는 트래픽은 ACL의 마지막 Permit 규칙으로 처리
+
+### GUEST-IN ACL
+
+적용 인터페이스:
+- CORE-SW1: VLAN 60 SVI, Inbound
+- CORE-SW2: VLAN 60 SVI, Inbound
+
+주요 ACL 규칙:
+
+```cisco
+ip access-list extended GUEST-IN
+ 5 permit icmp 10.10.60.0 0.0.0.255 10.10.10.0 0.0.0.255 echo-reply
+ 6 permit icmp 10.10.60.0 0.0.0.255 10.10.20.0 0.0.0.255 echo-reply
+ 7 permit icmp 10.10.60.0 0.0.0.255 10.10.30.0 0.0.0.255 echo-reply
+ 8 permit icmp 10.10.60.0 0.0.0.255 10.10.40.0 0.0.0.255 echo-reply
+ 9 permit icmp 10.10.60.0 0.0.0.255 10.10.50.0 0.0.0.255 echo-reply
+ 10 deny ip 10.10.60.0 0.0.0.255 10.10.10.0 0.0.0.255
+ 20 deny ip 10.10.60.0 0.0.0.255 10.10.20.0 0.0.0.255
+ 30 deny ip 10.10.60.0 0.0.0.255 10.10.30.0 0.0.0.255
+ 40 deny ip 10.10.60.0 0.0.0.255 10.10.40.0 0.0.0.255
+ 50 deny ip 10.10.60.0 0.0.0.255 10.10.50.0 0.0.0.255
+ 60 permit ip any any
+```
+
+### ACL 정책 설계 시 고려사항
+
+ICMP Echo Reply 예외 규칙을 Deny 규칙보다 먼저 배치했습니다.
+
+이를 통해 내부 네트워크에서 시작한 Ping에 대해 GUEST PC가 응답할 수 있도록 구성했습니다.
+
+단, 이 ACL은 상태 기반 방화벽이 아닙니다. ICMP Echo Reply만 예외적으로 허용하는 방식이며, TCP/UDP 세션의 반환 트래픽까지 자동으로 허용하는 구성은 아닙니다.
+
+---
+
+## 5. Verification & Test Results
+
+구성한 네트워크가 의도한 정책대로 동작하는지 PC 간 Ping 테스트와 ACL Match Count를 통해 확인했습니다.
+
+### 5-1. Inter-VLAN Communication
+
+확인 내용:
+- HR VLAN에서 DEV VLAN 통신
+- HR VLAN에서 SALES VLAN 통신
+- HR VLAN에서 SERVER VLAN 통신
+
+기존 테스트에서 정상 응답을 확인했습니다.
+
+### 5-2. GUEST Network Access Control
+
+| 테스트 | 결과 | 비고 |
+|---|---|---|
+| GUEST → Gateway | 성공 | 10.10.60.1 응답 확인 |
+| HR → GUEST | 성공 | 4/4 응답 |
+| GUEST → HR | 차단 | Destination host unreachable |
+| GUEST → DEV | 차단 기록 확인 | ACL Deny Match |
+| GUEST → SALES | 차단 기록 확인 | ACL Deny Match |
+| GUEST → SERVER | 차단 기록 확인 | ACL Deny Match |
+| GUEST → MGMT | 차단 기록 확인 | ACL Deny Match |
+
+### 5-3. ACL Match Count
+
+`show ip access-lists` 명령어를 이용해 ACL 규칙별 패킷 매칭 횟수를 확인했습니다.
+
+확인된 주요 항목:
+- ICMP Echo Reply 허용 규칙에서 Match Count 발생
+- HR, DEV, SALES, SERVER, MGMT 차단 규칙에서 Match Count 발생
+- 마지막 Permit 규칙에서도 Match Count 발생
+
+이를 통해 ACL이 실제 트래픽에 적용되고 규칙별로 매칭되는 것을 확인했습니다.
+
+검증 명령어:
+
+```cisco
+show ip access-lists
 show standby brief
+show interfaces trunk
+show etherchannel summary
+show spanning-tree vlan 60
+show vlan brief
 ```
-
-#### Result
-
-Guest VLAN 60의 내부 네트워크 VLAN 10~50 접근 차단을 검증했습니다. 테스트 과정에서 ACL의 deny 항목별 매치 카운터가 증가했으며, Guest PC는 기본 게이트웨이에 정상적으로 접근할 수 있음을 확인했습니다.
 
 ---
 
-### 6.2 SSH 기반 네트워크 장비 원격 관리 보안
+## 6. Troubleshooting
 
-#### 1. 구현 목적
+프로젝트 진행 과정에서 발생한 통신 문제를 Cisco 명령어와 실제 패킷 테스트를 통해 분석했습니다.
 
-- Telnet 대신 SSH를 사용하여 네트워크 장비의 원격 관리 보안 강화
-- 로컬 사용자 계정을 이용한 관리자 인증 구성
-- CORE-SW1과 CORE-SW2에 SSH v2 적용
-- VTY 접속을 SSH로 제한하여 Telnet을 통한 원격 접속 차단
-
-#### 2. 구성 정보
-
-| 항목 | CORE-SW1 | CORE-SW2 |
-|---|---|---|
-| 관리 VLAN | VLAN 50 (MGMT) | VLAN 50 (MGMT) |
-| 관리 IP | `10.10.50.254` | `10.10.50.253` |
-| SSH 버전 | SSH v2 | SSH v2 |
-| 인증 방식 | 로컬 사용자 계정 | 로컬 사용자 계정 |
-| 원격 접속 방식 | SSH 전용 | SSH 전용 |
-
-#### 3. 주요 보안 설정
-
-- 관리자 계정 `netadmin` 생성 및 로컬 인증 적용
-- RSA 키 생성 및 SSH 암호화 통신 구성
-- SSH 프로토콜 버전 2 활성화
-- VTY 라인에 `login local` 적용
-- `transport input ssh`를 적용하여 원격 접속을 SSH로 제한
-
-#### 4. 검증 결과
-
-| 검증 항목 | 결과 |
-|---|---|
-| PC-MGMT1 → CORE-SW1 (`10.10.50.254`) SSH 접속 | 성공 |
-| PC-MGMT1 → CORE-SW2 (`10.10.50.253`) SSH 접속 | 성공 |
-| 관리자 계정 인증 | 성공 |
-| SSH v2 활성화 확인 | 완료 |
-| VTY SSH 전용 설정 확인 | 완료 |
-
-#### 5. 검증 명령어
-
-```text
-show ip ssh
-show crypto key mypubkey rsa
-show running-config
-```
-
-#### 6. 구현 결과
-
-CORE-SW1과 CORE-SW2에 SSH 기반 원격 관리 환경을 구축하고 PC-MGMT1을 통한 실제 접속을 검증했습니다. SSH v2와 로컬 사용자 인증을 적용했으며, VTY 원격 접속을 SSH로 제한하여 Telnet 접속을 차단하도록 구성했습니다.
-
-#### 추가 검증: SSH 접근 제어 ACL
-
-| 출발지 | 목적지 | 검증 결과 |
-|---|---|---|
-| PC-MGMT1 (`10.10.50.10`) | CORE-SW1 (`10.10.50.254`) | SSH 접속 성공 |
-| PC-MGMT1 (`10.10.50.10`) | CORE-SW2 (`10.10.50.253`) | SSH 접속 성공 |
-| PC-HR1 | CORE-SW1 (`10.10.50.254`) | SSH 접속 거부 |
-
-**접근 제어 정책**
-
-- ACL 이름: `SSH-MGMT`
-- 허용 대상: 관리 PC `10.10.50.10`
-- 그 외 출발지: 접속 차단
-- 적용 위치: VTY 0~4의 인바운드 접근 제어
-
-**검증 결과**
-
-관리 PC에서 두 코어 스위치로 SSH 접속이 성공했으며, 일반 사용자 PC인 PC-HR1에서 CORE-SW1로 접속을 시도했을 때 연결이 거부되는 것을 확인했습니다. 또한 `show access-lists` 명령어에서 `SSH-MGMT`의 `deny any` 항목에 매치 카운터가 기록된 것을 확인했습니다.
-
-### 6.3 HSRP 장애 전환 및 복구 검증
-
-#### 1. 검증 목적
-
-CORE-SW1과 CORE-SW2에 구성된 HSRP를 이용하여 Active 장비의 장애 발생 시 Standby 장비가 게이트웨이 역할을 인계하는지 확인하고, 장애 복구 후 원래 역할로 돌아오는지 검증합니다.
-
-#### 2. 테스트 환경
-
-| 항목 | 설정 |
-|---|---|
-| 주 Active 장비 | CORE-SW1 |
-| 대기 장비 | CORE-SW2 |
-| CORE-SW1 우선순위 | 110 |
-| CORE-SW2 우선순위 | 100 |
-| 가상 게이트웨이 | VLAN별 `10.10.X.1` |
-| 복구 설정 | `preempt` 적용 |
-
-#### 3. 장애 전환 테스트
-
-CORE-SW1의 VLAN 10 인터페이스를 일시적으로 비활성화하여 HSRP 역할 전환을 유도했습니다.
-
-```text
-interface vlan 10
-shutdown
-```
-
-**검증 결과**
-
-- CORE-SW1의 VLAN 10 인터페이스 비활성화
-- CORE-SW2의 VLAN 10 HSRP 상태가 `Active`로 전환
-- 장애 상황에서 대체 게이트웨이 장비의 역할 인계 확인
-
-#### 4. 장애 복구 테스트
-
-CORE-SW1의 VLAN 10 인터페이스를 다시 활성화했습니다.
-
-```text
-interface vlan 10
-no shutdown
-```
-
-**검증 결과**
-
-- CORE-SW1의 VLAN 10 상태가 `Active`로 복귀
-- VLAN 10~60에서 CORE-SW1의 `Active`, CORE-SW2의 `Standby` 상태 확인
-- `preempt` 설정에 따른 우선순위 기반 역할 복귀 확인
-
-#### 5. 통신 검증
-
-장애 복구 후 PC-HR1에서 다음 목적지로 Ping 테스트를 수행했습니다.
-
-| 출발지 | 목적지 | 결과 |
-|---|---|---|
-| PC-HR1 | `10.10.10.1` (HR 게이트웨이) | 성공 |
-| PC-HR1 | `10.10.20.2` (DEV PC) | 성공 |
-| PC-HR1 | `10.10.30.2` (SALES PC) | 성공 |
-
-#### 6. 최종 결과
-
-HSRP 장애 전환 및 복구 테스트를 통해 VLAN 10에서 CORE-SW2가 Active 역할을 인계하고, CORE-SW1 복구 후 원래 Active 역할을 되찾는 것을 확인했습니다. 복구 후 게이트웨이 접근 및 HR에서 DEV·SALES 네트워크로의 통신도 정상적으로 확인했습니다.
-
-이번 테스트는 VLAN 10 SVI 장애를 이용한 역할 전환 검증이며, 코어 스위치 전체 장애 시나리오와 장애 발생 중 무중단 통신 여부는 별도 검증이 필요합니다.
-
-## 7. Troubleshooting Documentation
-
-각 장애는 다음과 같은 형식으로 기록합니다.
-
-### Example
+### Scenario 1. GUEST VLAN 접근 제어 문제
 
 **Problem**
 
-> DEV VLAN에서 SERVER VLAN으로 통신이 불가능한 현상 발생
-
-**Symptoms**
-
-```text
-PC → Gateway       정상
-PC → 다른 VLAN     실패
-PC → Server        실패
-```
+GUEST VLAN에서 내부 VLAN으로의 통신을 제한하면서 내부 VLAN에서 GUEST VLAN으로 시작한 Ping은 허용해야 하는 요구사항이 있었습니다.
 
 **Investigation**
 
-```text
-show vlan brief
-show interfaces trunk
-show ip interface brief
-show ip route
-show access-lists
-```
-
-**Root Cause**
-
-> ACL 설정 오류로 인해 DEV VLAN에서 SERVER VLAN으로 향하는 트래픽이 차단됨
+- VLAN 60 SVI 상태 확인
+- HSRP 상태 확인
+- Trunk 및 STP 상태 확인
+- GUEST-IN ACL 규칙 순서 확인
+- PC 간 Ping 테스트
+- ACL Match Count 확인
 
 **Resolution**
 
-> ACL 정책 수정 후 정상 통신 확인
+GUEST-IN ACL에 ICMP Echo Reply 예외 규칙을 추가하고, 기존 내부망 차단 규칙보다 먼저 처리되도록 구성했습니다.
 
 **Verification**
 
-```text
-ping 10.10.40.x
-```
+- HR → GUEST: Ping 성공
+- GUEST → HR: Ping 차단
+- ACL Match Count 증가 확인
 
 **Result**
 
-> 정상 통신 확인
+의도한 ICMP 접근 제어 정책이 동작하는 것을 확인했습니다.
 
 ---
 
-## 8. Project Goals
+## 7. Project Status
 
-이 프로젝트를 통해 다음과 같은 역량을 확보하는 것을 목표로 합니다.
+현재 구현 및 검증된 항목과 향후 확장 항목을 구분합니다.
 
-- Enterprise Network 설계 능력
-- Cisco 장비 구축 및 설정 능력
-- Routing / Switching 이해
-- Network Security 구성 능력
-- 장애 원인 분석 및 Troubleshooting 능력
-- 네트워크 이중화 구성 경험
-- 네트워크 운영 자동화 경험
-- 네트워크 구성 및 장애 대응 문서화
+### Completed
 
----
+- [x] Enterprise Network 기본 설계
+- [x] Cisco Packet Tracer 환경 구축
+- [x] VLAN 10~60 구성
+- [x] Access Port 및 Trunk 구성
+- [x] Inter-VLAN Routing
+- [x] HSRP Active / Standby 구성
+- [x] EtherChannel 구성
+- [x] STP 동작 확인
+- [x] GUEST-IN Extended ACL 구성
+- [x] 내부망 및 GUEST 간 ICMP 접근 제어 테스트
+- [x] ACL Match Count 확인
+- [x] 스위치 설정 저장
 
-## 9. Project Status
+### Planned
 
-> 🚧 현재 프로젝트 구축 진행 중
-
-### Current Progress
-
-- [x] 프로젝트 방향 설정
-- [x] Enterprise Network 구조 설계
-- [x] VLAN / IP Addressing 초안
-- [ ] Cisco Packet Tracer 환경 구축
-- [ ] 장비 배치
-- [ ] 기본 Switching 구성
-- [ ] Routing 구성
-- [ ] Network Security
-- [ ] High Availability
-- [ ] Troubleshooting LAB
-- [ ] Network Automation
-- [ ] 최종 문서화
+- [ ] HSRP Failover 장애 테스트
+- [ ] EtherChannel 링크 장애 테스트
+- [ ] Trunk 및 VLAN 장애 재현
+- [ ] SSH 관리 접근 제어 검증
+- [ ] OSPF 동적 라우팅 구성 및 검증
+- [ ] NAT/PAT 및 외부 네트워크 연결
+- [ ] Python 기반 네트워크 점검 자동화
+- [ ] 설정 백업 자동화
+- [ ] 최종 네트워크 토폴로지 및 테스트 증적 정리
 
 ---
 
-## 10. Repository Structure
-
-프로젝트가 진행되면서 다음과 같이 구성할 예정입니다.
+## 8. Repository Structure
 
 ```text
 Cisco-Enterprise-Network/
@@ -506,8 +334,6 @@ Cisco-Enterprise-Network/
 │   └── etherchannel/
 │
 ├── 03_Routing/
-│   ├── static/
-│   ├── ospf/
 │   └── inter_vlan/
 │
 ├── 04_High_Availability/
@@ -517,46 +343,24 @@ Cisco-Enterprise-Network/
 │   ├── acl/
 │   └── ssh/
 │
-├── 06_NAT/
-│   └── nat_pat/
-│
-├── 07_Troubleshooting/
+├── 06_Troubleshooting/
 │   ├── vlan_issue/
-│   ├── routing_issue/
-│   ├── ospf_issue/
 │   ├── acl_issue/
-│   └── stp_issue/
-│
-├── 08_Automation/
-│   ├── python/
-│   └── ansible/
+│   ├── stp_issue/
+│   └── etherchannel_issue/
 │
 └── packet_tracer/
     └── enterprise_network.pkt
 ```
 
+※ 위 디렉터리 구조는 프로젝트 진행에 따라 추가할 예정입니다.
+
 ---
 
-## 11. Final Objective
+## 9. Final Objective
 
-최종적으로 다음과 같은 흐름을 갖는 Enterprise Network LAB을 완성합니다.
+최종 목표는 기업 네트워크 환경을 직접 설계하고 구축한 뒤, 네트워크 이중화와 보안 정책을 적용하고 장애 상황에 대응할 수 있는 역량을 확보하는 것입니다.
 
-```text
-             설계
-              ↓
-             구축
-              ↓
-             검증
-              ↓
-          장애 상황 재현
-              ↓
-          원인 분석
-              ↓
-             복구
-              ↓
-            자동화
-              ↓
-           문서화
-```
+**Design → Implementation → Verification → Troubleshooting → Improvement → Documentation**
 
-단순한 네트워크 설정 실습이 아닌, **기업 네트워크를 직접 설계하고 구축한 뒤 장애 대응과 운영 자동화까지 수행하는 프로젝트**를 목표로 합니다.
+이 프로젝트를 통해 Cisco 기반 Routing / Switching 기술뿐 아니라 네트워크 운영, 접근 제어, 장애 원인 분석 및 대응 능력을 함께 발전시키는 것을 목표로 합니다.
